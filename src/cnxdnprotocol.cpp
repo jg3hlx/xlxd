@@ -97,10 +97,19 @@ void CNxdnProtocol::RxTask(void)
                 // Deferred call for OnDvLastFramePacketIn (must be called without peers lock
                 // because it calls HandleQueue which tries to acquire peers lock again)
                 CDvLastFramePacket *deferredLastFrame = NULL;
+                // Deferred call for OnDvHeaderPacketIn so the per-callsign
+                // loop-block check (IsCallsignLoopBlocked → LoopMutex)
+                // happens AFTER we release Peers. Avoids introducing a
+                // novel Peers → LoopMutex ordering that no other code
+                // path uses. The deferred values are captured under the
+                // Peers lock and consumed below the ReleasePeers call.
+                CDvHeaderPacket *deferredHeader = NULL;
+                uint16_t deferredSrcId = 0;
+                uint16_t deferredDstId = 0;
 
                 // find the peer
                 CPeers *peers = g_Reflector.GetPeers();
-                CPeer *peer = peers->FindPeer(Ip, PROTOCOL_NXDN);
+                CPeer *peer = peers->FindPeerByIpPort(Ip, PROTOCOL_NXDN);
 
                 if ( peer != NULL )
                 {
@@ -176,8 +185,12 @@ void CNxdnProtocol::RxTask(void)
                         // create header packet
                         CDvHeaderPacket *header = new CDvHeaderPacket(csMY, CCallsign("CQCQCQ"), rpt1, rpt2, uiStreamId, 0);
 
-                        // handle it (no gatekeeper check needed - already inside peer block)
-                        OnDvHeaderPacketIn(header, Ip, uiSrcId, uiDstId);
+                        // Defer OnDvHeaderPacketIn — the per-callsign loop
+                        // block check happens after Peers is released.
+                        // See the deferredHeader declaration above.
+                        deferredHeader = header;
+                        deferredSrcId = uiSrcId;
+                        deferredDstId = uiDstId;
                     }
                     else if ( uiFlags & NXDN_FLAG_TRAILER )
                     {
@@ -245,6 +258,29 @@ void CNxdnProtocol::RxTask(void)
                 }
                 g_Reflector.ReleasePeers();
 
+                // Process the deferred header outside Peers. Peer traffic
+                // bypasses MayTransmit by design, but is still subject
+                // to the per-callsign loop block. NXDN has no equivalent
+                // of the isPeer || MayTransmit check in YSF / DCS / etc.
+                // because this entire branch only runs when peer != NULL
+                // — so EVERY incoming NXDN header is peer-sourced and
+                // needs the loop-block consultation. See cysfprotocol.cpp
+                // for the rationale.
+                if ( deferredHeader != NULL )
+                {
+                    if ( g_GateKeeper.IsCallsignLoopBlocked(
+                            deferredHeader->GetMyCallsign(), "NXDN peer") )
+                    {
+                        delete deferredHeader;
+                        deferredHeader = NULL;
+                    }
+                    else
+                    {
+                        OnDvHeaderPacketIn(deferredHeader, Ip,
+                                           deferredSrcId, deferredDstId);
+                    }
+                }
+
                 // Now call OnDvLastFramePacketIn after peers lock is released
                 // This is necessary because OnDvLastFramePacketIn calls HandleQueue
                 // which tries to acquire peers lock again (mutex is not recursive)
@@ -261,7 +297,7 @@ void CNxdnProtocol::RxTask(void)
             bool peerExists = false;
             {
                 CPeers *peers = g_Reflector.GetPeers();
-                CPeer *existingPeer = peers->FindPeer(Ip, PROTOCOL_NXDN);
+                CPeer *existingPeer = peers->FindPeerByIpPort(Ip, PROTOCOL_NXDN);
                 if ( existingPeer != NULL )
                 {
                     existingPeer->Alive();
@@ -1077,8 +1113,11 @@ bool CNxdnProtocol::IsNxdnPeerCallsign(const CCallsign &callsign) const
 
 CCallsignListItem *CNxdnProtocol::FindNxdnPeerByIp(CPeerCallsignList *list, const CIp &ip)
 {
-    // Search for an NXDN peer matching this IP
-    // This is needed because multiple peers (YSF, NXDN) might share the same IP
+    // Search for an NXDN peer matching this IP. Port-aware disambiguation
+    // — see FindYsfPeerByIp in cysfprotocol.cpp for the full rationale.
+    // Briefly: if the interlink entry declares an explicit port, match
+    // (address, port); otherwise fall back to address-only for backward
+    // compatibility with single-peer-per-IP configurations.
     for ( int i = 0; i < list->size(); i++ )
     {
         CCallsignListItem *item = &((list->data())[i]);
@@ -1086,10 +1125,13 @@ CCallsignListItem *CNxdnProtocol::FindNxdnPeerByIp(CPeerCallsignList *list, cons
         // Check if this is an NXDN peer (callsign starts with "NX" + digit)
         if ( IsNxdnPeerCallsign(item->GetCallsign()) )
         {
-            // Check if IP matches
             if ( item->GetIp().GetAddr() == ip.GetAddr() )
             {
-                return item;
+                uint16 itemPort = item->GetPort();
+                if ( itemPort == 0 || ::htons(itemPort) == ip.GetPort() )
+                {
+                    return item;
+                }
             }
         }
     }

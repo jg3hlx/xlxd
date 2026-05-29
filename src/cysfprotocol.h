@@ -152,8 +152,11 @@ protected:
     bool EncodeDvPacket(const CDvHeaderPacket &, const CDvFramePacket *, CBuffer *) const;
     bool EncodeDvLastPacket(const CDvHeaderPacket &, CBuffer *) const;
 
-    // Wires-X packet decoding helpers
-    bool IsValidwirexPacket(const CBuffer &, CYSFFICH *, CCallsign *, int *, int*);
+    // Wires-X packet decoding helpers.
+    // Ip is used only for the unknown-command diagnostic log line —
+    // identifies the source so an operator can correlate an unknown
+    // command back to a peer or direct client.
+    bool IsValidwirexPacket(const CBuffer &, const CIp &, CYSFFICH *, CCallsign *, int *, int*);
     
     // server status packet decoding helpers
     bool IsValidServerStatusPacket(const CBuffer &) const;
