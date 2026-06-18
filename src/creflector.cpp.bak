@@ -258,13 +258,6 @@ CPacketStream *CReflector::OpenStream(CDvHeaderPacket *DvHeader, CClient *client
         // immediate-push produced while AMBEd negotiated a channel.
 
         inputCodec = stream->GetInputCodec();
-        // Capture the source's full codec set (single-codec for native
-        // protocols, multi-codec for XLX interlink peers) and what
-        // clients on this module need. Both reads need the Clients lock,
-        // which the caller holds across this whole Phase 1 block, so we
-        // do them here before releasing for Phase 2.
-        transcodeSourceCodecs = client->GetAvailableCodecs();
-        neededCodecs          = GetNeededCodecsOnModule(module);
         opened = true;
 
         if ( client->IsPeer() )

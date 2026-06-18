@@ -657,49 +657,9 @@ void CCodecStream::Task(void)
             if ( it != m_PendingTranscode.end() )
             {
                 CDvFramePacket *Packet = it->second;
-                // Per-slot Has-flag guard. Slots that arrived
-                // pre-populated from a multi-codec wire frame
-                // (XLX interlink in particular — see CXlxProtocol
-                // ::IsValidDvFramePacket for the rev 2/3 cases that
-                // set m_bHasAmbe and m_bHasAmbePlus) must NOT be
-                // overwritten by re-transcoded versions: doing so
-                // would add an extra vocoder hop and degrade
-                // downstream audio quality.
-                //
-                // We only requested transcoding because some
-                // codec(s) we need are missing; the rest of the
-                // outputs from ambed are byproducts of the
-                // 3-output transcoder API and should be discarded
-                // when the slot already has authoritative data.
-                // Field-naming caveat (legacy):
-                //   HasAmbeData()     ↔ m_bHasAmbe     ↔ AMBE+  (D-Star)
-                //   HasAmbePlusData() ↔ m_bHasAmbePlus ↔ AMBE+2 (DMR family)
-                // The "Plus" suffix in m_uiAmbePlus refers to "+2", not
-                // "+". Easy to misread; don't swap them.
-                auto fillIfMissing = [&](uint8 codec, uint8 *data) {
-                    switch (codec)
-                    {
-                        case CODEC_AMBEPLUS:
-                            if ( !Packet->HasAmbeData() )
-                                Packet->SetAmbe(codec, data);
-                            break;
-                        case CODEC_AMBE2PLUS:
-                            if ( !Packet->HasAmbePlusData() )
-                                Packet->SetAmbe(codec, data);
-                            break;
-                        case CODEC_CODEC2:
-                            if ( !Packet->HasCodec2Data() )
-                                Packet->SetAmbe(codec, data);
-                            break;
-                        case CODEC_IMBE:
-                            if ( !Packet->HasImbeData() )
-                                Packet->SetAmbe(codec, data);
-                            break;
-                    }
-                };
-                fillIfMissing(m_uiCodecOut1, Ambe1);
-                fillIfMissing(m_uiCodecOut2, Ambe2);
-                fillIfMissing(m_uiCodecOut3, Ambe3);
+                Packet->SetAmbe(m_uiCodecOut1, Ambe1);
+                Packet->SetAmbe(m_uiCodecOut2, Ambe2);
+                Packet->SetAmbe(m_uiCodecOut3, Ambe3);
                 m_PendingTranscode.erase(it);
             }
             else

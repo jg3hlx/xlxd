@@ -562,50 +562,11 @@ bool CXlxProtocol::OnDvHeaderPacketIn(CDvHeaderPacket *Header, const CIp &Ip)
     return newstream;
 }
 
-// Reconcile a freshly-parsed XLX wire-frame packet's Has-flags with
-// what the source actually provides. The wire-frame parser memcpys
-// all reserved slots blindly; only the source client knows whether
-// those slots are authoritative. Two source types need different
-// treatment:
-//   - Native CXlxPeer (rev 0/1/2/3): all reserved slots authoritative,
-//     matching CXlxClient::GetAvailableCodecs().
-//   - CXlxDmrPeer (BM/FD/FS/PH): only AMBE+2 authoritative; the dstar
-//     slot is reserved by the rev-2 wire format but empty/stale.
-// GetClient(0) is sufficient because every client on the same peer
-// shares the same protocol revision (CXlxClient) or codec assignment
-// (CXlxDmrClient), so GetAvailableCodecs() returns the same mask
-// regardless of which module's client we read.
-// If the peer or its first client cannot be found (race during
-// disconnect, never seen in practice), Conform is skipped and the
-// default-false Has-flags from the constructor stand — the codec
-// stream will then fill every slot from the transcoder. Harmless
-// extra work, never silence.
-static void ConformXlxPacketToSource(CDvFramePacket *DvFrame, const CIp *Ip)
-{
-    if ( Ip == NULL )
-        return;
-    uint32 codecMask = 0U;
-    CPeers *peers = g_Reflector.GetPeers();
-    CPeer *peer = peers->FindPeer(*Ip, PROTOCOL_XLX);
-    if ( (peer != NULL) && (peer->GetNbClients() > 0) )
-    {
-        CClient *c = peer->GetClient(0);
-        if ( c != NULL )
-            codecMask = c->GetAvailableCodecs();
-    }
-    g_Reflector.ReleasePeers();
-    if ( codecMask != 0U )
-        DvFrame->ConformAvailableCodecs(codecMask);
-}
-
 void CXlxProtocol::OnDvFramePacketIn(CDvFramePacket *DvFrame, const CIp *Ip)
 {
     // tag packet as remote peer origin
     DvFrame->SetRemotePeerOrigin();
-
-    // align Has-flags with the source's actual codec set
-    ConformXlxPacketToSource(DvFrame, Ip);
-
+    
     // anc call base class
     CDextraProtocol::OnDvFramePacketIn(DvFrame, Ip);
 }
@@ -614,11 +575,7 @@ void CXlxProtocol::OnDvLastFramePacketIn(CDvLastFramePacket *DvFrame, const CIp 
 {
     // tag packet as remote peer origin
     DvFrame->SetRemotePeerOrigin();
-
-    // align Has-flags with the source's actual codec set (CDvLastFramePacket
-    // inherits from CDvFramePacket so the same method applies)
-    ConformXlxPacketToSource(DvFrame, Ip);
-
+    
     // anc call base class
     CDextraProtocol::OnDvLastFramePacketIn(DvFrame, Ip);
 }
