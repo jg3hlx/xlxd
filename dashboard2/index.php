@@ -1,51 +1,5 @@
 <?php
-// Check if we are serving HTTPS
-function isHttps() {
-    // Check standard HTTPS indicators
-    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
-        return true;
-    }
-    if (!empty($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) {
-        return true;
-    }
-    // Check for proxy/load balancer headers
-    if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
-        return true;
-    }
-    if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] === 'on') {
-        return true;
-    }
-    return false;
-}
-
 session_start();
-
-// Security headers
-$isHttps = isHttps();
-header("X-Frame-Options: SAMEORIGIN");
-header("X-Content-Type-Options: nosniff");
-header("X-XSS-Protection: 1; mode=block");
-header("Referrer-Policy: strict-origin-when-cross-origin");
-header("Permissions-Policy: geolocation=(), microphone=(), camera=()");
-
-// Build CSP based on protocol
-// Allow external images via both http: and https: since we can't control external links
-$imgSrc = $isHttps ? "'self' data: https:" : "'self' data: http: https:";
-
-$csp = "default-src 'self'; " .
-        "script-src 'self' 'unsafe-inline'; " .
-        "style-src 'self' 'unsafe-inline'; " .
-        "img-src {$imgSrc}; " .
-        "connect-src 'self'; " .
-        "frame-ancestors 'self'";
-
-header("Content-Security-Policy: " . $csp);
-
-// Only add HSTS if served over HTTPS
-if ($isHttps) {
-        // HSTS: Force HTTPS for 1 year, but don't include subdomains (might be on local network)
-        header("Strict-Transport-Security: max-age=31536000");
-}
 
 /*
  *  This dashboard is being developed by the DVBrazil Team as a courtesy to
@@ -77,25 +31,6 @@ $Reflector->SetPIDFile($Service['PIDFile']);
 $Reflector->SetXMLFile($Service['XMLFile']);
 
 $Reflector->LoadXML();
-
-// Pre-parse journal data for co-located peer reflectors so the nav menu can
-// display live counts.  Each page file checks isset() before re-parsing.
-require_once('./pgs/parse_journal_peers.php');
-
-$YSFPeers = [];
-if (!empty($PageOptions['YSFPeerPage']['Show'])) {
-    $YSFPeers = ParseJournalPeers($PageOptions['YSFPeerPage']);
-}
-
-$NXDNPeers = [];
-if (!empty($PageOptions['NXDNPeerPage']['Show'])) {
-    $NXDNPeers = ParseJournalPeers($PageOptions['NXDNPeerPage']);
-}
-
-$P25Peers = [];
-if (!empty($PageOptions['P25PeerPage']['Show'])) {
-    $P25Peers = ParseJournalPeers($PageOptions['P25PeerPage']);
-}
 
 if ($CallingHome['Active']) {
 
@@ -241,18 +176,6 @@ if ($CallingHome['Active']) {
                         )</a></li>
                 <li<?php echo ($_GET['show'] == "peers") ? ' class="active"' : ''; ?>><a href="./index.php?show=peers">Peers
                         (<?php echo $Reflector->PeerCount(); ?>)</a></li>
-                <?php if (!empty($PageOptions['YSFPeerPage']['Show'])): ?>
-                <li<?php echo ($_GET['show'] == "ysfpeers") ? ' class="active"' : ''; ?>><a href="./index.php?show=ysfpeers"><?php echo SafeOutput($PageOptions['YSFPeerPage']['PageTitle']); ?>
-                        (<?php echo intval(count($YSFPeers)); ?>)</a></li>
-                <?php endif; ?>
-                <?php if (!empty($PageOptions['NXDNPeerPage']['Show'])): ?>
-                <li<?php echo ($_GET['show'] == "nxdnpeers") ? ' class="active"' : ''; ?>><a href="./index.php?show=nxdnpeers"><?php echo SafeOutput($PageOptions['NXDNPeerPage']['PageTitle']); ?>
-                        (<?php echo intval(count($NXDNPeers)); ?>)</a></li>
-                <?php endif; ?>
-                <?php if (!empty($PageOptions['P25PeerPage']['Show'])): ?>
-                <li<?php echo ($_GET['show'] == "p25peers") ? ' class="active"' : ''; ?>><a href="./index.php?show=p25peers"><?php echo SafeOutput($PageOptions['P25PeerPage']['PageTitle']); ?>
-                        (<?php echo intval(count($P25Peers)); ?>)</a></li>
-                <?php endif; ?>
                 <li<?php echo ($_GET['show'] == "reflectors") ? ' class="active"' : ''; ?>><a
                             href="./index.php?show=reflectors">Reflectorlist</a></li>
                 <li<?php echo ($_GET['show'] == "liveircddb") ? ' class="active"' : ''; ?>><a
@@ -275,15 +198,9 @@ if ($CallingHome['Active']) {
             if (!isset($_GET['show'])) {
                 $_GET['show'] = '';
             }
-            $allowed_shows = ['users', 'repeaters', 'liveircddb', 'peers', 'reflectors',
-                              'ysfpeers', 'nxdnpeers', 'p25peers', ''];
+            $allowed_shows = ['users', 'repeaters', 'liveircddb', 'peers', 'reflectors', ''];
             if (!in_array($_GET['show'], $allowed_shows, true)) {
                 $_GET['show'] = '';
-            }
-
-            // Validate 'do' parameter — only resetfilter is accepted via GET
-            if (isset($_GET['do']) && $_GET['do'] !== 'resetfilter') {
-                unset($_GET['do']);
             }
 
             switch ($_GET['show']) {
@@ -301,15 +218,6 @@ if ($CallingHome['Active']) {
                     break;
                 case 'reflectors' :
                     require_once("./pgs/reflectors.php");
-                    break;
-                case 'ysfpeers'   :
-                    require_once("./pgs/ysfpeers.php");
-                    break;
-                case 'nxdnpeers'  :
-                    require_once("./pgs/nxdnpeers.php");
-                    break;
-                case 'p25peers'   :
-                    require_once("./pgs/p25peers.php");
                     break;
                 default           :
                     require_once("./pgs/users.php");

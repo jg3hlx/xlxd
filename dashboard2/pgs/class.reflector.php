@@ -41,7 +41,7 @@ class xReflector {
          $handle = fopen($this->XMLFile, 'r');
          $this->XMLContent = fread($handle, filesize($this->XMLFile));
          fclose($handle);
-
+      }
 # XLX alphanumeric naming...
          $this->ServiceName = substr($this->XMLContent, strpos($this->XMLContent, "<XLX")+4, 3);
          if (preg_match('/[^a-zA-Z0-9]/', $this->ServiceName) == 1) {
@@ -61,15 +61,26 @@ class xReflector {
          $tmpNodes          = $XML->GetAllElements($AllNodesString, "NODE");
          
          for ($i=0;$i<count($tmpNodes);$i++) {
-             $Node = new Node($XML->GetElement($tmpNodes[$i], 'Callsign'), $XML->GetElement($tmpNodes[$i], 'IP'), $XML->GetElement($tmpNodes[$i], 'LinkedModule'), $XML->GetElement($tmpNodes[$i], 'Protocol'), $XML->GetElement($tmpNodes[$i], 'ConnectTime'), $XML->GetElement($tmpNodes[$i], 'LastHeardTime'), CreateCode(16));
+             $Node = new Node($XML->GetElement($tmpNodes[$i], 'Callsign'),
+                              $XML->GetElement($tmpNodes[$i], 'IP'),
+                              $XML->GetElement($tmpNodes[$i], 'LinkedModule'),
+                              $XML->GetElement($tmpNodes[$i], 'Protocol'),
+                              $XML->GetElement($tmpNodes[$i], 'ConnectTime'),
+                              $XML->GetElement($tmpNodes[$i], 'LastHeardTime'),
+                              CreateCode(16),$XML->GetElement($tmpNodes[$i], 'DMRID'));
              $this->AddNode($Node);
          }
          
          $AllStationsString = $XML->GetElement($this->XMLContent, $LinkedUsersName);
          $tmpStations       = $XML->GetAllElements($AllStationsString, "STATION");
          for ($i=0;$i<count($tmpStations);$i++) {
-             $Station = new Station($XML->GetElement($tmpStations[$i], 'Callsign'), $XML->GetElement($tmpStations[$i], 'Via node'), $XML->GetElement($tmpStations[$i], 'Via peer'), $XML->GetElement($tmpStations[$i], 'LastHeardTime'), $XML->GetElement($tmpStations[$i], 'On module'));
-             $this->AddStation($Station, false);
+             $Station = new Station($XML->GetElement($tmpStations[$i], 'Callsign'), 
+                                    $XML->GetElement($tmpStations[$i], 'Via node'),
+                                    $XML->GetElement($tmpStations[$i], 'Via peer'),
+                                    $XML->GetElement($tmpStations[$i], 'LastHeardTime'),
+                                    $XML->GetElement($tmpStations[$i], 'On module'),
+                                    $XML->GetElement($tmpStations[$i],'DMRID'));
+            $this->AddStation($Station, false);
          }
          
          $AllPeersString    = $XML->GetElement($this->XMLContent, $LinkedPeersName);
@@ -81,7 +92,7 @@ class xReflector {
          
          $this->Version = $XML->GetElement($this->XMLContent, "Version");   
       }
-   }
+   
    
    public function GetVersion() {
       return $this->Version;
