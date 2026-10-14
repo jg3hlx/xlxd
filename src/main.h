@@ -46,6 +46,7 @@
 #define VERSION_MAJOR                   2
 #define VERSION_MINOR                   6
 #define VERSION_REVISION                0
+#define VERSION_BUILD                  "DMR"
 
 // global ------------------------------------------------------
 #define RUN_AS_DAEMON
@@ -76,8 +77,8 @@ static_assert(DSCP_VALUE >= 0 && DSCP_VALUE <= 63,
 //#define DEBUG_NO_G3_ICMP_SOCKET
 
 // reflector ---------------------------------------------------
-#define NB_OF_MODULES                   10
-//#define NB_OF_MODULES                   NB_MODULES_MAX
+// #define NB_OF_MODULES                   10
+#define NB_OF_MODULES                   NB_MODULES_MAX
 
 // security ----------------------------------------------------
 #define MAX_REJECT_TRACKERS             4096                                // max tracked IPs for progressive ignore
